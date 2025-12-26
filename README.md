@@ -1,6 +1,6 @@
 # Mercury-Zigzag
 
-`mercury_zigzag` is a [Mercury](http://www.mercurylang.org) library for
+`mercury_zigzag` is a [Mercury](https://mercurylang.org) library for
 encoding signed Mercury integer types using
 [Zigzag](https://en.wikipedia.org/wiki/Variable-length_quantity#Zigzag_encoding)
 encoding.
