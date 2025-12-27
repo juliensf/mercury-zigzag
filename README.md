@@ -7,7 +7,7 @@ encoding.
 
 ## License
 
-`mercury_zingzag` is licensed under a simple 2-clause BSD style license.
+`mercury_zigzag` is licensed under a simple 2-clause BSD style license.
 See the file [COPYING](COPYING) for details.
 
 ## Installation
