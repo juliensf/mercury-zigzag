@@ -31,11 +31,36 @@
 :- import_module int64.
 :- import_module int8.
 :- import_module list.
+:- import_module maybe.
+:- import_module random.
+:- import_module random.sfc64.
+:- import_module random.system_rng.
 :- import_module string.
+:- import_module uint.
 
 %---------------------------------------------------------------------------%
 
 main(!IO) :-
+    open_system_rng(MaybeSystemRNG, !IO),
+    (
+        MaybeSystemRNG = ok(SystemRNG),
+        system_rng.generate_uint64(SystemRNG, SeedA, !IO),
+        system_rng.generate_uint64(SystemRNG, SeedB, !IO),
+        system_rng.generate_uint64(SystemRNG, SeedC, !IO),
+        close_system_rng(SystemRNG, !IO),
+        sfc64.seed(SeedA, SeedB, SeedC, RNG, RNGState),
+        make_io_urandom(RNG, RNGState, IO_RNG, !IO),
+        run_tests(IO_RNG,!IO)
+    ;
+        MaybeSystemRNG = error(ErrorMsg),
+        io.stderr_stream(Stderr, !IO),
+        io.format(Stderr, "Error: %s\n", [s(ErrorMsg)], !IO),
+        io.set_exit_status(1, !IO)
+    ).
+
+:- pred run_tests(RNG::in, io::di, io::uo) is det <= urandom(RNG, io).
+
+run_tests(RNG, !IO) :-
     % For 8-, 16- and 32-bit integers we just exhaustively test every value.
     test_all_int8s(!IO),
     test_all_int16s(!IO),
@@ -43,9 +68,9 @@ main(!IO) :-
 
     % Exhaustive testing is not feasible for 64-bit integers.
     % We test a list of known values.
-    % XXX and then should test some at random.
-    test_int64s(!IO),
+    test_int64s(RNG, !IO),
     test_ints(!IO).
+
 
 %---------------------------------------------------------------------------%
 
@@ -145,17 +170,20 @@ test_all_int32s_loop(N, !NumFailures, !IO) :-
 
 %---------------------------------------------------------------------------%
 
-:- pred test_int64s(io::di, io::uo) is det.
+:- pred test_int64s(RNG::in, io::di, io::uo) is det <= urandom(RNG, io).
 
-test_int64s(!IO) :-
-    some [!NumFailures] (
-        !:NumFailures = 0,
-        test_non_random_int64s(!NumFailures, !IO),
-        ( if !.NumFailures = 0 then
-            io.print_line("PASSED: non-random int64 tests.", !IO)
-        else
-            true
-        )
+test_int64s(RNG, !IO) :-
+    test_non_random_int64s(0, NumNonRandomFailures, !IO),
+    ( if NumNonRandomFailures = 0 then
+        io.print_line("PASSED: non-random int64 tests.", !IO)
+    else
+        true
+    ),
+    test_random_int64s(RNG, num_random_tests, 0, NumRandomFailures, !IO),
+    ( if NumRandomFailures = 0 then
+        io.print_line("PASSED: random int64 tests.", !IO)
+    else
+        true
     ).
 
 :- pred test_non_random_int64s(int::in, int::out, io::di, io::uo) is det.
@@ -186,6 +214,19 @@ int64s = [
     1i64,
     max_int64
 ].
+
+:- pred test_random_int64s(RNG::in, uint::in, int::in, int::out, io::di, io::uo)
+    is det <= urandom(RNG, io).
+
+test_random_int64s(RNG, TestN, !NumFailures, !IO) :-
+    random.generate_uint64(RNG, U64, !IO),
+    N = cast_from_uint64(U64),
+    do_test_int64(N, !NumFailures, !IO),
+    ( if TestN = 0u then
+        true
+    else
+        test_random_int64s(RNG, TestN - 1u, !NumFailures, !IO)
+    ).
 
 %---------------------------------------------------------------------------%
 
@@ -229,6 +270,12 @@ ints = [
     1,
     max_int
 ].
+
+%---------------------------------------------------------------------------%
+
+:- func num_random_tests = uint.
+
+num_random_tests = 1_000_000u.
 
 %---------------------------------------------------------------------------%
 :- end_module test_zigzag.
